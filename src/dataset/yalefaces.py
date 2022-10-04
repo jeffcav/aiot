@@ -40,6 +40,11 @@ def load(folder_path: str, flatten=True):
     X = np.array(list(map(_to_image, files, flatten_array)))
     y = np.array(list(map(_to_label, files)))
 
+    # sort by subject
+    sorted = np.argsort(y)
+    X = X[sorted]
+    y = y[sorted]
+
     return X, y
 
 def plot_subset(faces, labels, subjects=[0,3,8,10], num_samples=11):
