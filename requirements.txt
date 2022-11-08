@@ -1,0 +1,9 @@
+pandas
+numpy
+sklearn
+matplotlib
+keras
+tensorflow
+tensorflow-gpu
+scikeras
+torch==1.11.0
