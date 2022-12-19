@@ -3,6 +3,21 @@
 #include <mlp_params.h>
 #include <math.h>
 
+// input read in runtime
+char buffer[165];
+char y;
+
+// floating point layers outputs
+float layer1[96];
+float layer3[15];
+
+// quantized layers outputs
+int8_t qlayer1[96];
+int8_t qlayer3[15];
+
+// final estimated subject
+int subject_id;
+
 struct qparams {
     float zero, scale;
 };
@@ -11,12 +26,14 @@ struct qlayer {
     struct qparams input, weights, output;
 };
 
+struct qlayer l1_qparams, l3_qparams;
+
 // x must have 'cols' elements
 void mvm(struct qlayer *qlayer, const int8_t *M, const int8_t* x, float *out, int rows, int cols) {
     int i, j;
     float mvm_scale;
 
-    // TODO use python to export this value as a constant
+    // TODO: export this value as a constant in compile time
     mvm_scale = (qlayer->input.scale * qlayer->weights.scale);
 
     for (i = 0; i < rows; i++) {
@@ -24,13 +41,14 @@ void mvm(struct qlayer *qlayer, const int8_t *M, const int8_t* x, float *out, in
         int16_t mult;
         int32_t acc = 0;
 
+        // Compute the dot product between each line of M and the input x
         for (j = 0; j < cols; j++) {
             // TODO: we can avoid this subtraction by "zero"
             mult = (M[i*cols + j] - qlayer->weights.zero) * (x[j] - qlayer->input.zero);
             acc += mult;
         }
 
-        // TODO: we can avoid converting acc from int8 to float
+        // TODO: avoid converting acc from int8 to float
         y = (mvm_scale * acc);
         y = qlayer->output.scale * (y - qlayer->output.zero);
 
@@ -70,16 +88,7 @@ int argmax(float *x, int size) {
 }
 
 void setup() {
-    // TODO: allocate memory for layer inputs and outputs
-    float layer1[96];
-    float layer3[15];
-
-    int8_t qlayer1[96];
-    int8_t qlayer3[15];
-
-    int subject_id;
-
-    struct qlayer l1_qparams = {
+    l1_qparams = {
         .input = {
             .zero = input_zero,
             .scale = input_scale
@@ -94,7 +103,7 @@ void setup() {
         }
     };
 
-    struct qlayer l3_qparams = {
+    l3_qparams = {
         .input = {
             .zero = layer_1_zero,
             .scale = layer_1_scale
@@ -110,21 +119,21 @@ void setup() {
     };
 
     Serial.begin(921600);
-    Serial.println("Starting MVM");
-
-    mvm(&l1_qparams, layer_1_weights, input, layer1, 96, 165);
-    relu(layer1, layer1, 96);
-
-    // quantize output
-    quantize(layer1, &l1_qparams.output, 96, qlayer1);
-
-    mvm(&l3_qparams, layer_3_weights, qlayer1, layer3, 15, 96);
-
-    subject_id = argmax(layer3, 15);
-
-    Serial.printf("Finished MVM, subject: %d\n", subject_id);
+    Serial.println("Ready");
 }
 
 void loop() {
+    if (Serial.available()) {
+        Serial.readBytes(buffer, 165);
+        Serial.readBytes(&y, 1);
 
+        mvm(&l1_qparams, layer_1_weights, (int8_t*)buffer, layer1, 96, 165);
+        relu(layer1, layer1, 96);
+        quantize(layer1, &l1_qparams.output, 96, qlayer1);
+        mvm(&l3_qparams, layer_3_weights, qlayer1, layer3, 15, 96);
+
+        subject_id = argmax(layer3, 15);
+
+        Serial.println(subject_id);
+    }
 }

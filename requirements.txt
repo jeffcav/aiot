@@ -6,4 +6,5 @@ keras
 tensorflow
 tensorflow-gpu
 scikeras
+pyserial
 torch==1.11.0
