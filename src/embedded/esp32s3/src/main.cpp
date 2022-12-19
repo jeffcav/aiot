@@ -3,6 +3,9 @@
 #include <mlp_params.h>
 #include <math.h>
 
+#include "esp_dsp.h"
+
+
 // input read in runtime
 char buffer[165];
 char y;
@@ -127,13 +130,17 @@ void loop() {
         Serial.readBytes(buffer, 165);
         Serial.readBytes(&y, 1);
 
+        unsigned int start_b = dsp_get_cpu_cycle_count();
+
         mvm(&l1_qparams, layer_1_weights, (int8_t*)buffer, layer1, 96, 165);
         relu(layer1, layer1, 96);
         quantize(layer1, &l1_qparams.output, 96, qlayer1);
         mvm(&l3_qparams, layer_3_weights, qlayer1, layer3, 15, 96);
 
         subject_id = argmax(layer3, 15);
+        unsigned int end_b = dsp_get_cpu_cycle_count();
 
         Serial.println(subject_id);
+        Serial.println(end_b - start_b);
     }
 }
